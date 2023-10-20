@@ -350,7 +350,7 @@ BaseType_t xTimerReset( TimerHandle_t xTimer, TickType_t xTicksToWait );
 
 定时器的结构体如下，里面有一项pvTimerID，它就是定时器ID：
 
-![](./images/image7.png)
+![](https://photos.100ask.net/renesas-docs/DShanMCU_RA6M5/FreeRTOS/chapter-15/image7.png)
 
 怎么使用定时器ID，完全由程序来决定：
 
