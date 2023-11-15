@@ -1,6 +1,6 @@
-# 《ARM嵌入式系统中面向对象的模块编程方法》基于DShanMCU-RA6M6(瑞萨MCU)
+# 《ARM嵌入式系统中面向对象的模块编程方法》基于DShanMCU-RA6M5(瑞萨MCU)
 
-- [DShanMCU-RA6M6(瑞萨MCU)开发套件](https://item.taobao.com/item.htm?id=728461040949)
+- [DShanMCU-RA6M5(瑞萨MCU)开发套件](https://item.taobao.com/item.htm?id=728461040949)
 
 ## 前言
 

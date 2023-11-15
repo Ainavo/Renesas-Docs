@@ -4,5 +4,5 @@
 
 配套开发板：
 
-- [DShanMCU-RA6M6(瑞萨MCU)开发套件](https://item.taobao.com/item.htm?id=728461040949)
+- [DShanMCU-RA6M5(瑞萨MCU)开发套件](https://item.taobao.com/item.htm?id=728461040949)
 
