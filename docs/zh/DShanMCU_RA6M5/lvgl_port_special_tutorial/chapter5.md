@@ -89,7 +89,9 @@ lvgl本身内置有一个名为 **lv_conf_template.h** 的配置文件，对于l
 #define LV_USE_DEMO_WIDGETS 1
 ```
 
-### 5.3.2 修改显示驱动接口文件
+### 5.3.2修改显示驱动接口文件(v1.1硬件)
+
+这里的修改是为了适配 v1.1 显示屏，如果你是用的不是 v1.1 显示屏，请阅读后面小节适配 v1.2 的内容。
 
 打开 `03_dshanmcu_ra6m5_lvgl_display_touchpad\dshanmcu_ra6m5\drivers\lv_port_disp.c` 文件，下面对其进行修改适配我们的工程：
 
@@ -258,7 +260,9 @@ static void disp_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_colo
 #define LV_PORT_DISP_H
 ```
 
-### 5.3.3 修改输入驱动接口文件
+### 5.3.3修改输入驱动接口文件(v1.1硬件)
+
+这里的修改是为了适配 gt911 触摸屏，如果你是用的不是 gt911 触摸屏，请阅读下一小节（v1.2）适配 ft5x06 的内容。
 
 打开 `03_dshanmcu_ra6m5_lvgl_display_touchpad\dshanmcu_ra6m5\drivers\lv_port_indev.c` 文件，下面对其进行修改适配我们的工程：
 
@@ -416,6 +420,369 @@ static void touchpad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
     err = touchpad_is_touched();
     if(FSP_SUCCESS == err) {
         touchpad_get_pos((uint16_t *)&last_x, (uint16_t *)&last_y, 0);
+        data->state = LV_INDEV_STATE_PR;
+    }
+    else {
+        data->state = LV_INDEV_STATE_REL;
+    }
+
+    /*Set the last pressed coordinates*/
+    data->point.x = last_x;
+    data->point.y = last_y;
+}
+```
+
+7. 打开 `03_dshanmcu_ra6m5_lvgl_display_touchpad\dshanmcu_ra6m5\drivers\lv_port_indev.h` 文件这里只需修改一个地方，修改第 8 - 11 行为：
+
+```c
+#if 1
+
+#ifndef LV_PORT_INDEV_H
+#define LV_PORT_INDEV_H
+```
+
+### 5.3.2修改显示驱动接口文件(v1.2硬件)
+
+这里的修改是为了适配 v1.2 显示屏，如果你是用的是不是 v1.2 显示屏，请阅读上一小节适配 v1.1 的内容。
+
+打开 `03_dshanmcu_ra6m5_lvgl_display_touchpad\dshanmcu_ra6m5\drivers\lv_port_disp.c` 文件，下面对其进行修改适配我们的工程：
+
+1. 修改第 7 行为：
+
+```c
+#if 1
+```
+
+2. 修改 12 行为：
+
+```c
+#include "lv_port_disp.h"
+```
+
+3. 在 15 行空白处添加头文件包含：
+
+```c
+#include "drv_spi_display.h"
+#include <stdio.h>
+```
+
+4. 在 20 行空白处添加下面两行代码：
+
+```c
+#define MY_DISP_HOR_RES    320
+#define MY_DISP_VER_RES    480
+```
+
+5. 修改 `lv_port_disp_init` 函数为如下代码：
+
+```c
+void lv_port_disp_init(void)
+{
+    /*-------------------------
+     * Initialize your display
+     * -----------------------*/
+    disp_init();
+
+    /*-----------------------------
+     * Create a buffer for drawing
+     *----------------------------*/
+
+    /**
+     * LVGL requires a buffer where it internally draws the widgets.
+     * Later this buffer will passed to your display driver's `flush_cb` to copy its content to your display.
+     * The buffer has to be greater than 1 display row
+     *
+     * There are 3 buffering configurations:
+     * 1. Create ONE buffer:
+     *      LVGL will draw the display's content here and writes it to your display
+     *
+     * 2. Create TWO buffer:
+     *      LVGL will draw the display's content to a buffer and writes it your display.
+     *      You should use DMA to write the buffer's content to the display.
+     *      It will enable LVGL to draw the next part of the screen to the other buffer while
+     *      the data is being sent form the first buffer. It makes rendering and flushing parallel.
+     *
+     * 3. Double buffering
+     *      Set 2 screens sized buffers and set disp_drv.full_refresh = 1.
+     *      This way LVGL will always provide the whole rendered screen in `flush_cb`
+     *      and you only need to change the frame buffer's address.
+     */
+
+    /* Example for 1) */
+    static lv_disp_draw_buf_t draw_buf_dsc_1;
+    //static lv_color_t buf_1[MY_DISP_HOR_RES * 10];                          /*A buffer for 10 rows*/
+    lv_disp_draw_buf_init(&draw_buf_dsc_1, buf_1, NULL, MY_DISP_HOR_RES * 10);   /*Initialize the display buffer*/
+
+    /* Example for 2) */
+    //static lv_disp_draw_buf_t draw_buf_dsc_2;
+    //static lv_color_t buf_2_1[MY_DISP_HOR_RES * 10];                        /*A buffer for 10 rows*/
+    //static lv_color_t buf_2_2[MY_DISP_HOR_RES * 10];                        /*An other buffer for 10 rows*/
+    //lv_disp_draw_buf_init(&draw_buf_dsc_2, buf_2_1, buf_2_2, MY_DISP_HOR_RES * 10);   /*Initialize the display buffer*/
+
+    /* Example for 3) also set disp_drv.full_refresh = 1 below*/
+    //static lv_disp_draw_buf_t draw_buf_dsc_3;
+    //static lv_color_t buf_3_1[MY_DISP_HOR_RES * MY_DISP_VER_RES];            /*A screen sized buffer*/
+    //static lv_color_t buf_3_2[MY_DISP_HOR_RES * MY_DISP_VER_RES];            /*Another screen sized buffer*/
+    //lv_disp_draw_buf_init(&draw_buf_dsc_3, buf_3_1, buf_3_2,
+    //                      MY_DISP_VER_RES * LV_VER_RES_MAX);   /*Initialize the display buffer*/
+
+    /*-----------------------------------
+     * Register the display in LVGL
+     *----------------------------------*/
+
+    static lv_disp_drv_t disp_drv;                         /*Descriptor of a display driver*/
+    lv_disp_drv_init(&disp_drv);                    /*Basic initialization*/
+
+    /*Set up the functions to access to your display*/
+
+    /*Set the resolution of the display*/
+    disp_drv.hor_res = MY_DISP_HOR_RES;
+    disp_drv.ver_res = MY_DISP_VER_RES;
+
+    /*Used to copy the buffer's content to the display*/
+    disp_drv.flush_cb = disp_flush;
+
+    /*Set a display buffer*/
+    disp_drv.draw_buf = &draw_buf_dsc_2;
+
+    /*Required for Example 3)*/
+    //disp_drv.full_refresh = 1;
+
+    /* Fill a memory array with a color if you have GPU.
+     * Note that, in lv_conf.h you can enable GPUs that has built-in support in LVGL.
+     * But if you have a different GPU you can use with this callback.*/
+    //disp_drv.gpu_fill_cb = gpu_fill;
+
+    /*Finally register the driver*/
+    lv_disp_drv_register(&disp_drv);
+}
+```
+
+6. 修改 `disp_init` 函数为如下代码：
+
+```c
+static void disp_init(void)
+{
+     /*You code here*/
+    ptDispDev = LCDGetDevice();
+    if(NULL == ptDispDev)
+    {
+        //printf("Failed to get LCD device!\r\n");
+        return;
+    }
+    /* 初始化显示设备 */
+    ptDispDev->Init(ptDispDev);
+    /* 设置屏幕显示区域 */
+    //ptDispDev->SetDisplayWindow(ptDispDev, 0, 0, ptDispDev->wXres - 1, ptDispDev->wYres - 1);
+    /* 清除屏幕 */
+    //memset((uint8_t*)ptDispDev->FBBase, 0x00, ptDispDev->dwSize);
+    //ptDispDev->Flush(ptDispDev);
+}
+```
+
+7. 修改 `disp_flush` 函数为如下代码：
+
+```c
+static void disp_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_color_t * color_p)
+{
+#if 1
+    //DisplayDevice *ptDispDev = LCDGetDevice();
+    if(disp_flush_enabled) {
+        /*The most simple case (but also the slowest) to put all pixels to the screen one-by-one*/
+
+        //int32_t x;
+        //int32_t y;
+        //for(y = area->y1; y <= area->y2; y++) {
+        //    for(x = area->x1; x <= area->x2; x++) {
+        //        /*Put a pixel to the display. For example:*/
+        //        /*put_px(x, y, *color_p)*/
+        //        ptDispDev->SetPixel(ptDispDev, (unsigned short)x, (unsigned short)y, color_p);
+        //        color_p++;
+        //    }
+        //}
+
+        uint32_t size = lv_area_get_width(area) * lv_area_get_height(area);
+        ptDispDev->SetDisplayWindow(ptDispDev, (unsigned short)area->x1, (unsigned short)area->y1, (unsigned short)area->x2, (unsigned short)area->y2);
+        ptDispDev->Flush(ptDispDev, color_p, size * 2);
+    }
+#endif
+
+    /*IMPORTANT!!!
+     *Inform the graphics library that you are ready with the flushing*/
+    lv_disp_flush_ready(disp_drv);
+}
+```
+
+7. 打开 `03_dshanmcu_ra6m5_lvgl_display_touchpad\dshanmcu_ra6m5\drivers\lv_port_disp.h` 文件这里只需修改一个地方，修改第 7-10 行为：
+
+```c
+#if 1
+
+#ifndef LV_PORT_DISP_H
+#define LV_PORT_DISP_H
+```
+
+### 5.3.3 修改输入驱动接口文件(v1.2硬件)
+
+这里的修改是为了适配 ft5x06 触摸屏，如果你是用的不是 ft5x06 触摸屏，请阅读上一小节(v1.1)适配 gt911 的内容。
+
+打开 `03_dshanmcu_ra6m5_lvgl_display_touchpad\dshanmcu_ra6m5\drivers\lv_port_indev.c` 文件，下面对其进行修改适配我们的工程：
+
+1. 修改第 7 行为：
+
+```c
+#if 1
+```
+
+2. 修改 12 行为：
+
+```c
+#include "lv_port_indev.h"
+```
+
+3. 在 15 行空白处添加头文件包含：
+
+```c
+#include "drv_i2c_touchpad.h"
+#include <stdio.h>
+```
+
+4. 修改 `lv_port_indev_init` 函数为如下代码：
+
+```c
+void lv_port_indev_init(void)
+{
+    /**
+     * Here you will find example implementation of input devices supported by LittelvGL:
+     *  - Touchpad
+     *  - Mouse (with cursor support)
+     *  - Keypad (supports GUI usage only with key)
+     *  - Encoder (supports GUI usage only with: left, right, push)
+     *  - Button (external buttons to press points on the screen)
+     *
+     *  The `..._read()` function are only examples.
+     *  You should shape them according to your hardware
+     */
+
+    static lv_indev_drv_t indev_drv;
+
+    /*------------------
+     * Touchpad
+     * -----------------*/
+
+    /*Initialize your touchpad if you have*/
+    touchpad_init();
+
+    /*Register a touchpad input device*/
+    lv_indev_drv_init(&indev_drv);
+    indev_drv.type = LV_INDEV_TYPE_POINTER;
+    indev_drv.read_cb = touchpad_read;
+    indev_touchpad = lv_indev_drv_register(&indev_drv);
+
+    /*------------------
+     * Mouse
+     * -----------------*/
+
+    /*Initialize your mouse if you have*/
+    //mouse_init();
+
+    /*Register a mouse input device*/
+    //lv_indev_drv_init(&indev_drv);
+    //indev_drv.type = LV_INDEV_TYPE_POINTER;
+    //indev_drv.read_cb = mouse_read;
+    //indev_mouse = lv_indev_drv_register(&indev_drv);
+
+    /*Set cursor. For simplicity set a HOME symbol now.*/
+    //lv_obj_t * mouse_cursor = lv_img_create(lv_scr_act());
+    //lv_img_set_src(mouse_cursor, LV_SYMBOL_HOME);
+    //lv_indev_set_cursor(indev_mouse, mouse_cursor);
+
+    /*------------------
+     * Keypad
+     * -----------------*/
+
+    /*Initialize your keypad or keyboard if you have*/
+    //keypad_init();
+
+    /*Register a keypad input device*/
+    //lv_indev_drv_init(&indev_drv);
+    //indev_drv.type = LV_INDEV_TYPE_KEYPAD;
+    //indev_drv.read_cb = keypad_read;
+    //indev_keypad = lv_indev_drv_register(&indev_drv);
+
+    /*Later you should create group(s) with `lv_group_t * group = lv_group_create()`,
+     *add objects to the group with `lv_group_add_obj(group, obj)`
+     *and assign this input device to group to navigate in it:
+     *`lv_indev_set_group(indev_keypad, group);`*/
+
+    /*------------------
+     * Encoder
+     * -----------------*/
+
+    /*Initialize your encoder if you have*/
+    //encoder_init();
+
+    /*Register a encoder input device*/
+    //lv_indev_drv_init(&indev_drv);
+    //indev_drv.type = LV_INDEV_TYPE_ENCODER;
+    //indev_drv.read_cb = encoder_read;
+    //indev_encoder = lv_indev_drv_register(&indev_drv);
+
+    /*Later you should create group(s) with `lv_group_t * group = lv_group_create()`,
+     *add objects to the group with `lv_group_add_obj(group, obj)`
+     *and assign this input device to group to navigate in it:
+     *`lv_indev_set_group(indev_encoder, group);`*/
+
+    /*------------------
+     * Button
+     * -----------------*/
+
+    /*Initialize your button if you have*/
+    //button_init();
+
+    /*Register a button input device*/
+    //lv_indev_drv_init(&indev_drv);
+    //indev_drv.type = LV_INDEV_TYPE_BUTTON;
+    //indev_drv.read_cb = button_read;
+    //indev_button = lv_indev_drv_register(&indev_drv);
+
+    /*Assign buttons to points on the screen*/
+    //static const lv_point_t btn_points[2] = {
+    //    {10, 10},   /*Button 0 -> x:10; y:10*/
+    //    {40, 100},  /*Button 1 -> x:40; y:100*/
+    //};
+    //lv_indev_set_button_points(indev_button, btn_points);
+}
+```
+
+5. 修改 `touchpad_init` 函数为如下代码：
+
+```c
+static void touchpad_init(void)
+{
+      /*Your code comes here*/
+    ptDev = TouchDevGet();
+    if(NULL == ptDev)
+    {
+        //printf("Error. Not Found Touch Device!\r\n");
+        return;
+    }
+
+    ptDev->Init(ptDev);
+}
+```
+
+6. 修改 `touchpad_read` 函数为如下代码：
+
+```c
+static void touchpad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
+{
+    static lv_coord_t last_x = 0;
+    static lv_coord_t last_y = 0;
+
+    /*Save the pressed coordinates and the state*/
+    if(ptDev->Read(ptDev, &last_x, &last_y) == true)
+    {
         data->state = LV_INDEV_STATE_PR;
     }
     else {
